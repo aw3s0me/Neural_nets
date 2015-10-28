@@ -35,7 +35,15 @@ public class Perzeptron {
     }
 
     public double[][] getSigmResult() {
-        return sigmResult;
+        double[][] result = new double[K][M];
+
+        for (int i = 0; i < K; i++) {
+            for (int j = 0; j < M; j++) {
+                result[i][j] = sigmResult[i][j] > 0.5 ? 1 : 0;
+            }
+        }
+
+        return result;
     }
 
     public double[][] getInputs() {

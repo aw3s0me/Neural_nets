@@ -4,18 +4,30 @@ import java.util.LinkedList;
 import java.util.Random;
 
 /**
- * Created by aw3s0_000 on 27.10.2015.
- * Aleksandr Korovin and Andrei Zhukov. Uni Bonn. Neural nets assignment PA-A.
+ * Created by aw3s0_000 on 04.11.2015.
+ * Aleksandr Korovin and Andrei Zhukov. Uni Bonn. Neural nets assignment PB-A.
  */
-public class Perzeptron {
+public class MultiLayerPerzeptron {
     private int N; //number of properties from file
     private int M; //number of neurons from file
     private int K; //number of objects from file
     private static final double LEARNING_RATE = 0.01;
     private static final int ITERATIONS_NUM = 200;
+    private static final double MIN_GEN_WEIGHT = -2;
+    private static final double MAX_GEN_WEIGHT = 2;
+    private static final int GEN_SEED = 2;
+    //STI = Sigmoid (0 index), Tanh (1 index), Identity (2 index)
+    private static final ArrayList<ITransferFunction> TRANSFER_FUNCTIONS_STI = new ArrayList<ITransferFunction>(){{
+        add(new SigmoidFunction()); //index == 0
+        add(new TanhFunction()); //index == 1
+        add(new IdentityFunction()); //index == 2
+    }};
+    private final Random RANDOMIZER = new Random();
     private double[][] inputs;
     private double[][] teacher; //matrix of teacher values
+    private double[][] hidden;
     private double[][] weights; //matrix of weights
+    private double[][] weights2;
     private double[][] resultsMult; //result after multiplication of inputs on weights matrixes
     private double[][] sigmResult; //result after sigmoid function
 
@@ -35,18 +47,6 @@ public class Perzeptron {
         return resultsMult;
     }
 
-    public double[][] getSigmResult() {
-        double[][] result = new double[K][M];
-
-        for (int i = 0; i < K; i++) {
-            for (int j = 0; j < M; j++) {
-                result[i][j] = sigmResult[i][j] > 0.5 ? 1 : 0;
-            }
-        }
-
-        return result;
-    }
-
     public double[][] getInputs() {
         return inputs;
     }
@@ -59,17 +59,17 @@ public class Perzeptron {
         return weights;
     }
 
-    public double sigmoid(double val) {
-        return (1/( 1 + Math.pow(Math.E,(-1*val))));
-    }
-
     public void calcSigm() {
         sigmResult = new double[K][M];
         for (int i = 0; i < K; i++) {
             for (int j = 0; j < M; j++) {
-                sigmResult[i][j] = sigmoid(resultsMult[i][j]);
+                sigmResult[i][j] = TRANSFER_FUNCTIONS_STI.get(0).calculate(resultsMult[i][j]);
             }
         }
+    }
+
+    private void setRandomizer() {
+        RANDOMIZER.setSeed(GEN_SEED);
     }
 
     /**
@@ -80,7 +80,7 @@ public class Perzeptron {
      * @param filename
      * @throws Exception
      */
-    public Perzeptron(String filename) throws IOException {
+    public MultiLayerPerzeptron(String filename) throws IOException {
         InputStream stream = ClassLoader.getSystemResourceAsStream(filename);
         BufferedReader buffer = new BufferedReader(new InputStreamReader(stream));
         String line;
@@ -88,7 +88,10 @@ public class Perzeptron {
         LinkedList<ArrayList<Double>> tempTeacherList = new LinkedList<>();
 
         while ((line = buffer.readLine()) != null) {
-            String[] vals = line.trim().split("\\t"); //to parse
+            if (line.contains("#")) {
+                continue;
+            }
+            String[] vals = line.trim().split("    "); //to parse
 
             String[] inpVals = vals[0].split(" ");
             String[] teacherVals = vals[1].split(" ");
@@ -96,11 +99,13 @@ public class Perzeptron {
             ArrayList<Double> teacherRow = new ArrayList<>();
 
             for (int i = 0; i < inpVals.length; i++) {
-                inputRow.add(Double.parseDouble(inpVals[i]));
+                if (!inpVals[i].isEmpty())
+                    inputRow.add(Double.parseDouble(inpVals[i]));
             }
 
             for (int i = 0; i < teacherVals.length; i++) {
-                teacherRow.add(Double.parseDouble(teacherVals[i]));
+                if (!teacherVals[i].isEmpty())
+                    teacherRow.add(Double.parseDouble(teacherVals[i]));
             }
 
             tempInpList.add(inputRow);
@@ -133,12 +138,13 @@ public class Perzeptron {
             }
         }
 
+        setRandomizer();
     }
 
     /**
      * function to calculate gradient descent
      */
-    private void gradientStep() {
+    private void backPropagation() {
         double[][] transposedInputs = Matrix.transpose(inputs); //need to transpose input matrix, because it doesn't match dimensions
         double[][] errorResult = new double[K][M]; //matrix to store intermediate result
 
@@ -156,47 +162,14 @@ public class Perzeptron {
 
     /**
      * To generate weight matrix
-     * @param minWeight
-     * @param maxWeight
-     * @return
      */
-    public void generateWeights(double minWeight, double maxWeight) {
+    private void generateWeights() {
         weights = new double[N+1][M];
-        Random r = new Random();
+        Random r = RANDOMIZER;
 
         for (int i = 0; i < weights.length; i++) {
             for (int j = 0; j < weights[i].length; j++) {
-                weights[i][j] = minWeight + (maxWeight - minWeight) * r.nextDouble();
-            }
-        }
-    }
-
-    public void readWeightsFromFile(String filename) throws IOException {
-        InputStream stream = ClassLoader.getSystemResourceAsStream(filename);
-        weights = new double[N+1][M];
-        BufferedReader buffer = new BufferedReader(new InputStreamReader(stream));
-        String line;
-        LinkedList<ArrayList<Double>> tempInpList = new LinkedList<>();
-
-        while ((line = buffer.readLine()) != null) {
-            String[] vals = line.trim().split(" "); //to parse
-
-            ArrayList<Double> inputRow = new ArrayList<>();
-
-            for (int i = 0; i < vals.length; i++) {
-                inputRow.add(Double.parseDouble(vals[i]));
-            }
-
-            tempInpList.add(inputRow);
-        }
-
-        if (tempInpList.size() != N + 1 || tempInpList.getFirst().size() != M)
-            throw new RuntimeException("The dimension of weight matrix doesnt fit the dimension of input matrix");
-
-        for (int i = 0; i < N + 1; i++) {
-            ArrayList<Double> list = tempInpList.get(i);
-            for (int j = 0; j < M; j++) {
-                weights[i][j] = list.get(j);
+                weights[i][j] = MIN_GEN_WEIGHT + (MAX_GEN_WEIGHT - MIN_GEN_WEIGHT) * r.nextDouble();
             }
         }
     }
@@ -210,10 +183,7 @@ public class Perzeptron {
     }
 
     public static void main(String[] args) throws Exception {
-        double minWeight = -0.5;
-        double maxWeight = 0.5;
-
-        Perzeptron perzeptron = new Perzeptron("PA-A-train.dat");
+        MultiLayerPerzeptron perzeptron = new MultiLayerPerzeptron("training.dat");
 
         System.out.println("Number of objects: " + perzeptron.getNumberOfObjects() + "\n");
         System.out.println("Number of neurons: " + perzeptron.getNumberOfNeurons() + "\n");
@@ -222,18 +192,46 @@ public class Perzeptron {
         Utils.printMatrix("Input matrix: ", perzeptron.getInputs());
         Utils.printMatrix("Teacher matrix: ", perzeptron.getTeacher());
 
-        //perzeptron.generateWeights(minWeight, maxWeight);
-        perzeptron.readWeightsFromFile("Weights.dat");
-        Utils.printMatrix("Weight matrix: ", perzeptron.getWeights());
+        perzeptron.generateWeights();
 
         for (int i = 0; i < ITERATIONS_NUM; i++) {
             perzeptron.multiplyWeightsAndInputs();
             perzeptron.calcSigm();
-            perzeptron.gradientStep();
+            perzeptron.backPropagation();
         }
 
-        Utils.printMatrix("Sigmoid result: ", perzeptron.getSigmResult());
+        //Utils.printMatrix("Sigmoid result: ", perzeptron.getSigmResult());
         Utils.printMatrix("New weights: ", perzeptron.getWeights());
         Utils.printMatrix("Error matrix: ", perzeptron.getError());
     }
+
+    /**
+     * Created by aw3s0_000 on 03.11.2015.
+     */
+    public interface ITransferFunction {
+        double calculate(double val);
+    }
+
+    public static class SigmoidFunction implements ITransferFunction {
+        @Override
+        public double calculate(double val) {
+            return (1/( 1 + Math.pow(Math.E,(-1*val))));
+        }
+    }
+
+    public static class TanhFunction implements ITransferFunction {
+        @Override
+        public double calculate(double val) {
+            return Math.tanh(val);
+        }
+    }
+
+    public static class IdentityFunction implements ITransferFunction {
+        @Override
+        public double calculate(double val) {
+            return val;
+        }
+    }
 }
+
+

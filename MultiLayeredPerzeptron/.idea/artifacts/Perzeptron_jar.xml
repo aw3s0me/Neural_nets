@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="Perzeptron:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/Perzeptron_jar</output-path>
+    <root id="archive" name="Perzeptron.jar">
+      <element id="module-output" name="Perzeptron" />
+    </root>
+  </artifact>
+</component>

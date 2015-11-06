@@ -1,6 +1,5 @@
 import java.io.*;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.Random;
 
 /**
@@ -13,6 +12,7 @@ public class MLP
     {
         private int nOutput;
         private int nInput;
+        private double learnRate;
         private ITransferFunction transferFunction;
         private double[] input;
         private double[][] weights;
@@ -32,7 +32,8 @@ public class MLP
             return weights;
         }
 
-        public MLPLayer(int inputSize, int outputSize, ITransferFunction transferFunction, Random random) {
+        public MLPLayer(int inputSize, int outputSize, double learnRate, ITransferFunction transferFunction, Random random) {
+            this.learnRate = learnRate;
             this.transferFunction = transferFunction;
             this.nOutput = outputSize;
             this.nInput = inputSize;
@@ -115,20 +116,21 @@ public class MLP
         public void setNewWeights() {
             for (int i = 0; i < nOutput; i++) {
                 for (int j = 0; j < nInput; j++) {
-                    weights[j][i] += LEARNING_RATE * error[i] * input[j];
+                    weights[j][i] += learnRate * error[i] * input[j];
                 }
             }
 
         }
     }
 
-    private static final double LEARNING_RATE = 0.1;
-    private static final int ITERATIONS_NUM = 500;
+//    private static final double LEARNING_RATE = 0.1;
+//    private static final int ITERATIONS_NUM = 500;
     //GENERATION CONSTANTS
     private static final double MIN_GEN_WEIGHT = -2;
     private static final double MAX_GEN_WEIGHT = 2;
     private static final int GEN_SEED = 2;
-    private int numOfPatternsGlobal;
+    private double learnRate;
+//    private int nPatterns;
     private final Random RANDOMIZER = new Random();
     //LAYERS
     private static final int HID_LAYER_NUM_1 = 6; //in case of 1-hidden-layer and 2-hidden layers.
@@ -140,17 +142,6 @@ public class MLP
         add(new TanhFunction()); //index == 1
         add(new IdentityFunction()); //index == 2
     }};
-    //MATRICES
-    private double[][] fileInputs;
-    private double[][] teacher; //matrix of teacher values
-
-    public double[][] getFileInputs() {
-        return fileInputs;
-    }
-
-    public double[][] getTeacher() {
-        return teacher;
-    }
 
     private void setRandomizer() {
         RANDOMIZER.setSeed(GEN_SEED);
@@ -161,70 +152,16 @@ public class MLP
      * File structure:
      * 1) nOutput - number of neurons - first line
      * 2) nPatterns - number of objects (,) nProperties - number of properties
-     * @param filename name of file
-     * @param hiddenLayerSizes number of neurons on hidden layers
-     * @throws IOException
+     * @param nInput number of input neurons
+     * @param nOutput number of output neurons
+     * @param hiddenLayerSizes number of hidden neurons in each hidden layer
+     * @param learnRate learning rate. if it is needed to set multiple learning rates. change to array
      */
-    public MLP(String filename, int[] hiddenLayerSizes) throws IOException {
-        InputStream stream = ClassLoader.getSystemResourceAsStream(filename);
-        BufferedReader buffer = new BufferedReader(new InputStreamReader(stream));
-        String line;
-        LinkedList<ArrayList<Double>> tempInpList = new LinkedList<>();
-        LinkedList<ArrayList<Double>> tempTeacherList = new LinkedList<>();
-
-        while ((line = buffer.readLine()) != null) {
-            if (line.contains("#")) {
-                continue;
-            }
-            String[] vals = line.trim().split("    "); //to parse
-
-            String[] inpVals = vals[0].split(" ");
-            String[] teacherVals = vals[1].split(" ");
-            ArrayList<Double> inputRow = new ArrayList<>();
-            ArrayList<Double> teacherRow = new ArrayList<>();
-
-            for (String inpVal : inpVals) {
-                if (!inpVal.isEmpty())
-                    inputRow.add(Double.parseDouble(inpVal));
-            }
-
-            for (String teacherVal : teacherVals) {
-                if (!teacherVal.isEmpty())
-                    teacherRow.add(Double.parseDouble(teacherVal));
-            }
-
-            tempInpList.add(inputRow);
-            tempTeacherList.add(teacherRow);
-        }
-
-        numOfPatternsGlobal = tempInpList.size();
-        int nProperties = tempInpList.get(0).size();
-        int nOutput = tempTeacherList.get(0).size();
-
-        fileInputs = new double[numOfPatternsGlobal][nProperties];
-        teacher = new double[numOfPatternsGlobal][nOutput];
-
-        for (int i = 0; i < numOfPatternsGlobal; i++) {
-            ArrayList<Double> list = tempInpList.get(i);
-            for (int j = 0; j < nProperties; j++) {
-                fileInputs[i][j] = list.get(j);
-            }
-        }
-
-        for (int i = 0; i < numOfPatternsGlobal; i++) {
-            ArrayList<Double> list = tempTeacherList.get(i);
-            for (int j = 0; j < nOutput; j++) {
-                teacher[i][j] = list.get(j);
-            }
-        }
-
-        ArrayList<Integer> layerSizes = setLayerSizes(nProperties, nOutput, hiddenLayerSizes);
-
+    public MLP(int nInput, int nOutput, double learnRate, int[] hiddenLayerSizes)
+    {
+        this.learnRate = learnRate;
+        ArrayList<Integer> layerSizes = setLayerSizes(nInput, nOutput, hiddenLayerSizes);
         initializeLayers(layerSizes);
-    }
-
-    public void initializeFromFile() {
-
     }
 
     private ArrayList<Integer> setLayerSizes(int nInput, int nOutput, int[] hiddenLayerSizes) {
@@ -248,17 +185,21 @@ public class MLP
         setRandomizer();
         for (int i = 1; i < layerSizes.size(); i++) {
             layers.add(new MLPLayer(layerSizes.get(i-1),
-                    layerSizes.get(i), TRANSFER_FUNCTIONS_STI.get(i - 1), RANDOMIZER));
+                    layerSizes.get(i), learnRate, TRANSFER_FUNCTIONS_STI.get(i - 1), RANDOMIZER));
         }
     }
 
-    private void iteration() throws FileNotFoundException, UnsupportedEncodingException {
+    private void train(FileInput fileInput, int iterationsNum) throws FileNotFoundException, UnsupportedEncodingException {
         PrintWriter writer = new PrintWriter("learning.curve", "UTF-8");
+        int nPatterns = fileInput.getnPatterns();
+        double[][] inputs = fileInput.getFileInputs();
+        double[][] teacher = fileInput.getTeacher();
+
         writer.println("# X     Y");
-        for (int i = 0; i < ITERATIONS_NUM; i++) {
+        for (int i = 0; i < iterationsNum; i++) {
             double objSum = 0;
-            for (int j = 0; j < numOfPatternsGlobal; j++) {
-                double[] output = fileInputs[j];
+            for (int j = 0; j < nPatterns; j++) {
+                double[] output = inputs[j];
                 double ErrSum = 0;
                 for (MLPLayer layer : layers) {
                     output = layer.run(output);
@@ -302,58 +243,105 @@ public class MLP
     }
 
     public static void main(String[] args) throws Exception {
-        MLP perzeptron = new MLP("training.dat", new int[]{HID_LAYER_NUM_1, HID_LAYER_NUM_2});
-        Utils.printMatrix("Input matrix: ", perzeptron.getFileInputs());
-        Utils.printMatrix("Teacher matrix: ", perzeptron.getTeacher());
+        FileInput fileInput = new FileInput("training.dat");
 
-        perzeptron.iteration();
+        MLP perzeptron = new MLP(fileInput.getnInput(), fileInput.getnOutput(), 0.01, new int[]{HID_LAYER_NUM_1, HID_LAYER_NUM_2});
+        Utils.printMatrix("Input matrix: ", fileInput.getFileInputs());
+        Utils.printMatrix("Teacher matrix: ", fileInput.getTeacher());
+
+        perzeptron.train(fileInput, 500);
+
+        //uncomment when test
+//        FileInput testInput = new FileInput("test.dat");
+//        perzeptron.test(testInput);
+    }
+
+    /**
+     * To run test file with already trained neural net
+     * @param fileInput file input containing matrices
+     * @throws FileNotFoundException
+     * @throws UnsupportedEncodingException
+     */
+    private void test(FileInput fileInput) throws FileNotFoundException, UnsupportedEncodingException {
+        PrintWriter writer = new PrintWriter("test.result", "UTF-8");
+        int nPatterns = fileInput.getnPatterns();
+        double[][] inputs = fileInput.getFileInputs();
+        double[][] teacher = fileInput.getTeacher();
+
+        double objSum = 0;
+        for (int j = 0; j < nPatterns; j++) {
+            double[] output = inputs[j];
+            double ErrSum = 0;
+            for (MLPLayer layer : layers) {
+                output = layer.run(output);
+            }
+            backPropagation(teacher[j]);
+            //calculate error
+            for (int k = 0; k < output.length; k++) {
+                double diff = (teacher[j][k] - output[k]);
+                ErrSum += diff * diff;
+            }
+            ErrSum = ErrSum * 0.5;
+            objSum += ErrSum; //error for all patterns
+            writer.println(String.format("Pattern %d error: %.3f", j, ErrSum));
+        }
+        writer.println(String.format("Final error (for all patterns): %.3f", objSum));
+
+        writer.close();
     }
 
     /**
      * Created by aw3s0_000 on 03.11.2015.
      */
-    public interface ITransferFunction {
+    public interface ITransferFunction
+    {
         double calculate(double val);
         double calculateDerivative(double val);
     }
 
-    public static class SigmoidFunction implements ITransferFunction {
+    public static class SigmoidFunction implements ITransferFunction
+    {
         @Override
-        public double calculate(double val) {
+        public double calculate(double val)
+        {
             return (1/( 1 + Math.pow(Math.E,(-1*val))));
         }
 
         @Override
-        public double calculateDerivative(double val) {
+        public double calculateDerivative(double val)
+        {
             double funcVal = calculate(val);
             return funcVal * (1- funcVal);
         }
     }
 
-    public static class TanhFunction implements ITransferFunction {
+    public static class TanhFunction implements ITransferFunction
+    {
         @Override
-        public double calculate(double val) {
+        public double calculate(double val)
+        {
             return Math.tanh(val);
         }
 
         @Override
-        public double calculateDerivative(double val) {
+        public double calculateDerivative(double val)
+        {
             double funcVal = calculate(val);
             return 1 - (funcVal * funcVal);
         }
     }
 
-    public static class IdentityFunction implements ITransferFunction {
+    public static class IdentityFunction implements ITransferFunction
+    {
         @Override
         public double calculate(double val) {
             return val;
         }
 
         @Override
-        public double calculateDerivative(double val) {
+        public double calculateDerivative(double val)
+        {
             return 1;
         }
     }
 }
-
-

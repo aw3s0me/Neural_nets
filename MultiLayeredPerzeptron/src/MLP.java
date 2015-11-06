@@ -16,17 +16,12 @@ public class MLP
         private ITransferFunction transferFunction;
         private double[] input;
         private double[][] weights;
-        private double[][] dweights;
         private double[] error;
         private double[] output;
         private double[] net;
 
         public int getnOutput() {
             return nOutput;
-        }
-
-        public int getInputNumber() {
-            return nInput;
         }
 
         public double[] getErrors() {
@@ -41,6 +36,7 @@ public class MLP
             this.transferFunction = transferFunction;
             this.nOutput = outputSize;
             this.nInput = inputSize;
+
             initializeWeights(random);
         }
 
@@ -51,14 +47,14 @@ public class MLP
                 newInput[i] = input[i];
             }
             newInput[nInput] = 1;
-            //Initialization of bias row (each element equals to 1
+            //Initialization of bias (each element equals to 1)
 
             return newInput;
         }
 
         /**
          * get output of MLPLayer
-         * @param input
+         * @param input input vector
          */
         public double[] run(double[] input) {
             if (input == null)
@@ -84,7 +80,6 @@ public class MLP
 
         private void initializeWeights(Random random) {
             weights = new double[nInput + 1][nOutput];
-            dweights = new double[nInput + 1][nOutput];
 
             for (int i = 0; i < weights.length; i++) {
                 for (int j = 0; j < weights[i].length; j++) {
@@ -127,8 +122,8 @@ public class MLP
         }
     }
 
-    private static final double LEARNING_RATE = 0.01;
-    private static final int ITERATIONS_NUM = 200;
+    private static final double LEARNING_RATE = 0.1;
+    private static final int ITERATIONS_NUM = 500;
     //GENERATION CONSTANTS
     private static final double MIN_GEN_WEIGHT = -2;
     private static final double MAX_GEN_WEIGHT = 2;
@@ -148,7 +143,6 @@ public class MLP
     //MATRICES
     private double[][] fileInputs;
     private double[][] teacher; //matrix of teacher values
-    private double[][] output; //result after sigmoid function
 
     public double[][] getFileInputs() {
         return fileInputs;
@@ -167,9 +161,9 @@ public class MLP
      * File structure:
      * 1) nOutput - number of neurons - first line
      * 2) nPatterns - number of objects (,) nProperties - number of properties
-     * @param filename
-     * @param hiddenLayerSizes
-     * @throws Exception
+     * @param filename name of file
+     * @param hiddenLayerSizes number of neurons on hidden layers
+     * @throws IOException
      */
     public MLP(String filename, int[] hiddenLayerSizes) throws IOException {
         InputStream stream = ClassLoader.getSystemResourceAsStream(filename);
@@ -189,14 +183,14 @@ public class MLP
             ArrayList<Double> inputRow = new ArrayList<>();
             ArrayList<Double> teacherRow = new ArrayList<>();
 
-            for (int i = 0; i < inpVals.length; i++) {
-                if (!inpVals[i].isEmpty())
-                    inputRow.add(Double.parseDouble(inpVals[i]));
+            for (String inpVal : inpVals) {
+                if (!inpVal.isEmpty())
+                    inputRow.add(Double.parseDouble(inpVal));
             }
 
-            for (int i = 0; i < teacherVals.length; i++) {
-                if (!teacherVals[i].isEmpty())
-                    teacherRow.add(Double.parseDouble(teacherVals[i]));
+            for (String teacherVal : teacherVals) {
+                if (!teacherVal.isEmpty())
+                    teacherRow.add(Double.parseDouble(teacherVal));
             }
 
             tempInpList.add(inputRow);
@@ -229,13 +223,17 @@ public class MLP
         initializeLayers(layerSizes);
     }
 
+    public void initializeFromFile() {
+
+    }
+
     private ArrayList<Integer> setLayerSizes(int nInput, int nOutput, int[] hiddenLayerSizes) {
         ArrayList<Integer> layerSizes = new ArrayList<>();
         layerSizes.add(nInput);
 
-        if (hiddenLayerSizes != null || hiddenLayerSizes.length != 0) {
-            for (int i = 0; i < hiddenLayerSizes.length; i++) {
-                layerSizes.add(hiddenLayerSizes[i]);
+        if (hiddenLayerSizes != null && hiddenLayerSizes.length != 0) {
+            for (int hiddenLayerSize : hiddenLayerSizes) {
+                layerSizes.add(hiddenLayerSize);
             }
         }
 
@@ -254,20 +252,33 @@ public class MLP
         }
     }
 
-    private void iteration() {
+    private void iteration() throws FileNotFoundException, UnsupportedEncodingException {
+        PrintWriter writer = new PrintWriter("learning.curve", "UTF-8");
+        writer.println("# X     Y");
         for (int i = 0; i < ITERATIONS_NUM; i++) {
+            double objSum = 0;
             for (int j = 0; j < numOfPatternsGlobal; j++) {
                 double[] output = fileInputs[j];
+                double ErrSum = 0;
                 for (MLPLayer layer : layers) {
                     output = layer.run(output);
                 }
                 backPropagation(teacher[j]);
+                for (int k = 0; k < output.length; k++) {
+                    double diff = (teacher[j][k] - output[k]);
+                    ErrSum += diff * diff;
+                }
+                ErrSum = ErrSum * 0.5;
+                objSum += ErrSum;
             }
+            writer.println(String.format("%d %.3f", i, objSum));
         }
+
+        writer.close();
     }
 
     /**
-     * function to calculate gradient descent
+     * function to calculate back propagation
      */
     private void backPropagation(double[] desiredOutput) {
         double[] prevErrors = null;

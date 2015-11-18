@@ -123,14 +123,11 @@ public class MLP
         }
     }
 
-//    private static final double LEARNING_RATE = 0.1;
-//    private static final int ITERATIONS_NUM = 500;
     //GENERATION CONSTANTS
     private static final double MIN_GEN_WEIGHT = -2;
     private static final double MAX_GEN_WEIGHT = 2;
-    private static final int GEN_SEED = 2;
+    private static final int GEN_SEED = 10;
     private double learnRate;
-//    private int nPatterns;
     private final Random RANDOMIZER = new Random();
     //LAYERS
     private static final int HID_LAYER_NUM_1 = 6; //in case of 1-hidden-layer and 2-hidden layers.
@@ -242,18 +239,36 @@ public class MLP
         }
     }
 
+    public static void printMatrix(String introStr, double[][] matrix) {
+        String str = "";
+        int rows = matrix.length;
+
+        System.out.println(introStr);
+
+        if (matrix != null) {
+            for (int i = 0; i < matrix.length; i++) {
+                for (int j = 0; j < matrix[i].length; j++) {
+                    System.out.print(matrix[i][j] + " ");
+                }
+                System.out.print("\n");
+            }
+        }
+    }
+
     public static void main(String[] args) throws Exception {
-        FileInput fileInput = new FileInput("training.dat");
+        FileInput fileInput = new FileInput("training2.dat");
 
-        MLP perzeptron = new MLP(fileInput.getnInput(), fileInput.getnOutput(), 0.01, new int[]{HID_LAYER_NUM_1, HID_LAYER_NUM_2});
-        Utils.printMatrix("Input matrix: ", fileInput.getFileInputs());
-        Utils.printMatrix("Teacher matrix: ", fileInput.getTeacher());
-
+        MLP perzeptron = new MLP(fileInput.getnInput(), fileInput.getnOutput(), 0.1, new int[]{HID_LAYER_NUM_1, HID_LAYER_NUM_2});
+        //Set hidden layers size = 1
+        //MLP perzeptron = new MLP(fileInput.getnInput(), fileInput.getnOutput(), 0.1, new int[]{HID_LAYER_NUM_1});
+        //Set hidden layers size = 0
+        //MLP perzeptron = new MLP(fileInput.getnInput(), fileInput.getnOutput(), 0.1, new int[]{});
         perzeptron.train(fileInput, 500);
-
+        printMatrix("Input matrix: ", fileInput.getFileInputs());
+        printMatrix("Teacher matrix: ", fileInput.getTeacher());
         //uncomment when test
-//        FileInput testInput = new FileInput("test.dat");
-//        perzeptron.test(testInput);
+        FileInput testInput = new FileInput("test2.dat");
+        perzeptron.test(testInput);
     }
 
     /**
@@ -283,7 +298,7 @@ public class MLP
             }
             ErrSum = ErrSum * 0.5;
             objSum += ErrSum; //error for all patterns
-            writer.println(String.format("Pattern %d error: %.3f", j, ErrSum));
+            writer.println(String.format("Pattern %d error: %.6f", j, ErrSum));
         }
         writer.println(String.format("Final error (for all patterns): %.3f", objSum));
 

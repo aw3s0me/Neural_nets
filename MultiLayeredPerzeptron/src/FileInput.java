@@ -4,6 +4,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Created by aw3s0_000 on 06.11.2015.
@@ -36,32 +38,58 @@ public class FileInput
         return teacher;
     }
 
+    public int getSizeByVariableName(String varName, String line) {
+        String ptrn = String.format("%s=(.+?)\\s+", varName);
+        Pattern regex = Pattern.compile(ptrn);
+        Matcher matcher = regex.matcher(line);
+        matcher.find();
+        String str = matcher.group(1);
+        return Integer.parseInt(str);
+    }
+
     public FileInput(String filename) throws IOException {
         InputStream stream = ClassLoader.getSystemResourceAsStream(filename);
         BufferedReader buffer = new BufferedReader(new InputStreamReader(stream));
         String line;
         LinkedList<ArrayList<Double>> tempInpList = new LinkedList<>();
         LinkedList<ArrayList<Double>> tempTeacherList = new LinkedList<>();
-
+        int commentIndex = 0;
+        int P = 0;
+        int N = 0;
+        int M = 0;
         while ((line = buffer.readLine()) != null) {
             if (line.contains("#")) {
+                if (commentIndex == 1) {
+                    P = getSizeByVariableName("P", line);
+                    N = getSizeByVariableName("N", line);
+                    M = getSizeByVariableName("M", line);
+                }
+                commentIndex++;
                 continue;
             }
-            String[] vals = line.trim().split("    "); //to parse
 
-            String[] inpVals = vals[0].split(" ");
-            String[] teacherVals = vals[1].split(" ");
+            if(line == null || line.isEmpty()) break;
+            String[] valsWithEmpties = line.trim().split(" "); //to parse
+            ArrayList<String> valsWithoutEmpties = new ArrayList<>();
+
             ArrayList<Double> inputRow = new ArrayList<>();
             ArrayList<Double> teacherRow = new ArrayList<>();
 
-            for (String inpVal : inpVals) {
-                if (!inpVal.isEmpty())
-                    inputRow.add(Double.parseDouble(inpVal));
+            for (String val : valsWithEmpties) {
+                if (val.isEmpty()) continue;
+                else {
+                    valsWithoutEmpties.add(val);
+                }
             }
 
-            for (String teacherVal : teacherVals) {
-                if (!teacherVal.isEmpty())
-                    teacherRow.add(Double.parseDouble(teacherVal));
+            for (int i = 0; i < N + M; i++) {
+                //first N elements are input. then teacher
+                if (i < N) {
+                    inputRow.add(Double.parseDouble(valsWithoutEmpties.get(i)));
+                }
+                else {
+                    teacherRow.add(Double.parseDouble(valsWithoutEmpties.get(i)));
+                }
             }
 
             tempInpList.add(inputRow);
